@@ -1,1 +1,100 @@
+-- 1	List customers who placed more than one delivered order
+
+-- correlated approach
+SELECT c.name FROM customers c
+WHERE (
+SELECT COUNT(o.customer_id) FROM orders o
+WHERE c.customer_id = o.customer_id AND o.status = 'Delivered') >1 ;
+
+-- non correlated approach
+SELECT name FROM customers
+WHERE customer_id IN
+(SELECT customer_id FROM orders
+WHERE status = 'Delivered'
+GROUP BY customer_id
+HAVING count(customer_id) > 1
+)
+
+-- 2	List customers who never placed any order
+
+-- correlated approach
+SELECT c.name FROM customers c
+WHERE 
+(SELECT COUNT(o.customer_id) AS order_count
+FROM orders o
+WHERE c.customer_id = o.customer_id
+) = 0 ;
+
+-- noncorrelated approach
+SELECT name FROM customers
+WHERE customer_id NOT IN
+(SELECT customer_id FROM orders
+);
+
+-- 3	List customers who have only placed cancelled orders
+
+--correlated approach
+SELECT c.name FROM customers c
+WHERE (
+		SELECT COUNT(*) 
+		FROM orders o
+       	WHERE o.customer_id = c.customer_id AND o.status != 'Cancelled' ) =0 
+		AND
+		(SELECT COUNT(*) 
+		FROM orders o
+       	WHERE o.customer_id = c.customer_id AND o.status = 'Cancelled' ) >0
+		;
+
+--non correlated approach
+SELECT c.name, o.customer_id FROM customers c
+INNER JOIN orders o
+ON o.customer_id = c.customer_id
+GROUP BY o.customer_id, c.name
+HAVING COUNT(*) = SUM(CASE WHEN o.status = 'Cancelled' THEN 1 ELSE 0 END);
+
+
+-- 4	List customers who have placed at least one high-value order (e.g. amount > ₹1000)
+
+-- Correlated approach
+SELECT c.name FROM customers c
+WHERE(
+	   SELECT COUNT(*) FROM orders o
+	   WHERE o.customer_id = c.customer_id
+	   AND o.amount > 1000 ) >0;
+
+-- Non Correlated approach
+SELECT name FROM customers
+WHERE customer_id IN
+(SELECT customer_id FROM orders
+WHERE amount > 1000)
+
+-- 5	List customers whose total spend is above average spend of all customers
+
+-- correlated approach 
+SELECT c.name FROM customers c
+WHERE (SELECT SUM(o.amount) AS total_spend FROM orders o
+	   WHERE o.customer_id = c.customer_id
+) >
+		(SELECT AVG(total_spend) FROM
+		(SELECT SUM(o.amount) AS total_spend
+			FROM orders o
+			GROUP BY o.customer_id) AS spend_summary);
+
+-- noncorrelated approach
+SELECT c.name
+FROM customers c
+JOIN (
+    SELECT customer_id, SUM(amount) AS total_spend
+    FROM orders
+    GROUP BY customer_id
+) s ON c.customer_id = s.customer_id
+WHERE s.total_spend > (
+    SELECT AVG(total_spend)
+    FROM (
+        SELECT SUM(amount) AS total_spend
+        FROM orders
+        GROUP BY customer_id
+    ) t
+);
+
 
